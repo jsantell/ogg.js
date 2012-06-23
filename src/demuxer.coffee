@@ -24,17 +24,17 @@ class OGGDemuxer extends Demuxer
 
             # Check capture pattern
             if @stream.readString(4) isnt CAPTURE_PATTERN
-                return @emit 'error', 'Invalid Ogg Vorbis file.'
+                @emit 'error', 'Invalid Ogg Vorbis file.'
 
             if @stream.readUInt8() isnt 0
-                return @emit 'error', 'Invalid Ogg Vorbis version.'
+                @emit 'error', 'Invalid Ogg Vorbis version.'
 
             # Check header type
             @pageHeaderType = @stream.readUInt8()
             if not @started and @pageHeaderType isnt PAGE_BOS
-                return @emit 'error', 'File must begin with BOS header.'
-            if @packedStarted and not @pageHeaderType & PAGE_CONT
-                    return @emit 'error', 'Ogg page headers must denote packet continuation.'
+                @emit 'error', 'File must begin with BOS header.'
+            if @packetStarted and not @pageHeaderType & PAGE_CONT
+                @emit 'error', 'Ogg page headers must denote packet continuation.'
             if @pageHeaderType & PAGE_EOS
                 @lastPage = true
             @started = true
@@ -75,7 +75,7 @@ class OGGDemuxer extends Demuxer
                 @pageStarted = false
 
     parseHeaderId: ->
-        stream = new Stream( @buffer )
+        stream = new Stream(@buffer)
         @checkHeaderSignature stream
 
         stream.advance(4) # vorbis version
@@ -128,7 +128,11 @@ class OGGDemuxer extends Demuxer
         stream = new Stream(@buffer)
         @checkHeaderSignature stream
 
-        @vorbisCodebookCount = stream.readUInt8()
+        @vorbisCodebookCount  = stream.readUInt8() + 1
+        @vorbisCodebookConfig = []
+        for i in [0...@vorbisCodebookCount]
+            @vorbisCodebookConfig.push @decodeCodebook( stream )
+
         bitstream = new Bitstream(stream)
         @vorbisTimeCount = bitstream.read(6) + 1
 
@@ -139,5 +143,85 @@ class OGGDemuxer extends Demuxer
         @emit 'data', temp
 
     checkHeaderSignature: ( stream ) ->
-        if stream.readString(6) isnt HEADER_SIG
-            return @emit 'error', 'Invalid packet header in file.'
+        @emit 'error', 'Invalid packet header in file.' if stream.readString(6) isnt HEADER_SIG
+
+    decodeCodebook: ( stream ) ->
+        codebook = {}
+        if (syncPattern = stream.readUInt24(true)) isnt 0x564342
+            @emit 'error', "Invalid codebook sync pattern: #{syncPattern}."
+        codebook.dimensions  = stream.readUInt16(true)
+        codebook.entryLength = stream.readUInt24(true)
+        codebook.ordered     = stream.readUInt8()
+        codebook.sparse      = !!(codebook.ordered & 0x02)
+        codebook.ordered     = !!(codebook.ordered & 0x01)
+        codebook.entries   = []
+
+        # Codeword length
+        bitstream = new Bitstream( stream )
+        unless codebook.ordered
+            for i in [0...codebook.entryLength]
+                if codebook.sparse
+                    # if flag is set, read stream, otherwise unused
+                    if bitstream.readOne()
+                        (codebook.entries[i] = {}).length = bitstream.read(5)
+                    else
+                        (codebook.entries[i] = {}).length = null
+                else
+                    (codebook.entries[i] = {}).length = bitstream.read(5) + 1
+        else
+            currentEntry = 0
+            while currentEntry < codebook.entryLength
+                currentLength = bitstream.read(5) + 1
+                number =  bistream.read ilog(codebook.entryLength - currentEntry)
+                for i in [currentEntry..currentEntry+number-1]
+                    codebook.entries[i].length = currentLength
+                    currentEntry += number
+                    currentLength++
+                    if currentEntry > codebook.entryLength
+                        @emit 'error', "More codeword lengths (#{currentEntry}) than codebook entries (#{codebook.entryLength})."
+
+        codebook.lookupType    = bitstream.read(4)
+        codebook.minValue      = float32Unpack stream.readUInt32(true)
+        codebook.deltaValue    = float32Unpack stream.readUInt32(true)
+        codebook.valueBits     = bitstream.read(4) + 1
+        codebook.seq           = bitstream.readOne()
+        codebook.multiplicands = []
+
+        if codebook.lookupType is 1
+            codebook.lookupValue = lookupValue1 codebook.entryLength, codebook.dimensions
+        else if codebook.lookupType is 2
+            codebook.lookupValue = codebook.entryLength * codebook.dimensions
+        else
+            @emit 'error', "Codebook lookup type #{codebook.lookupType} is reserved and not supported"
+
+        for i in [0...codebook.lookUpValue]
+            codebook.multiplicands.push bitstream.read(codebook.valueBits)
+
+        # Assigning entries
+        usedCodewords = []
+        for entry in codebook.entries
+            continue if entry.length is null # skip unused entries
+            codeword = entry.length
+            codeword++ while codeword in usedCodewords
+            entry.codeword = codeword
+
+
+    ilog = ( x ) ->
+        val = 0
+        while x > 0
+            val++
+            x >>>= 1
+        val
+
+    float32Unpack = ( x ) ->
+        mantissa = x & 0x1fffff
+        sign = x & 0x80000000
+        exp  = ( x & 0x7fe00000 ) >>> 21
+        mantissa *= -1 if x
+        mantissa * (Math.pow 2, exp - 788)
+
+    lookupValue1 = ( entryLength, dimensions ) ->
+        x = 1
+        x++ while Math.pow(x, dimensions) <= entryLength
+        x
+
