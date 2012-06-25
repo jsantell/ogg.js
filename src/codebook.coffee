@@ -32,10 +32,10 @@ OGGDemuxer::decodeCodebook = ( stream, bitstream ) ->
             number =  bitstream.readV(OGGDemuxer.ilog(codebook.entryCount - i))
             for j in [i..i+number-1]
                 (codebook.entries[j] = {}).length = currentLength
-                i++
-                currentLength++
-                if i > codebook.entryCount
-                    @emit 'error', "More codeword lengths (#{i}) than codebook entries (#{codebook.entryCount})."
+            i += number
+            currentLength++
+            if i > codebook.entryCount
+                @emit 'error', "More codeword lengths (#{i}) than codebook entries (#{codebook.entryCount})."
 
 
     # Skip lookup decoding if type 0
