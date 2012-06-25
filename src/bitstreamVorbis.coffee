@@ -1,8 +1,8 @@
 ###
-    Extends Bitstream prototype with methods to consume
-    the stream as per the Vorbis spec.
-    
-    Spec (http://xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-360002)
+#   ogg.js
+#   Aurora.js Bitstream extension for Vorbis Packets
+#
+#   Spec (http://xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-360002)
 ###
 
 Bitstream.vorbisMask = [
@@ -17,7 +17,7 @@ Bitstream.vorbisMask = [
     0xffffffff
 ]
 
-Bitstream::readV = ( bits ) ->
+Bitstream::readVorbis = ( bits ) ->
     modBits = bits + @bitPosition
     a  = (@stream.peekUInt8()  & 0xFF) >>> @bitPosition
     a |= (@stream.peekUInt8(1) & 0xFF) << (8 - @bitPosition)  if modBits > 8

@@ -1,3 +1,11 @@
+###
+#   ogg.js
+#   Utilities
+#
+#   Spec for vorbis helper functions:
+#   http://xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-1160009.2 
+###
+
 OGGDemuxer.ilog = ( x ) ->
     val = 0
     while x > 0

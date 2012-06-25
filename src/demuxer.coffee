@@ -1,6 +1,9 @@
 ###
-    ogg.js - Ogg Vorbis decoder in JavaScript
+#   ogg.js
+#   Ogg Vorbis decoder in JavaScript
+#   @jsantell
 ###
+
 class OGGDemuxer extends Demuxer
     Demuxer.register(OGGDemuxer)
 
@@ -88,9 +91,9 @@ class OGGDemuxer extends Demuxer
         @bitRate    = if @bitRateMax is @bitRateMin and @bitRateMax then @bitRateMax else @bitRateNom
         @bitDepth   = @bitRate / @sampleRate / @channels
 
-        @blocksize0 = 1 << bitstream.readV(4)
-        @blocksize1 = 1 << bitstream.readV(4)
-        framingBit = bitstream.readV(1)
+        @blocksize0 = 1 << bitstream.readVorbis(4)
+        @blocksize1 = 1 << bitstream.readVorbis(4)
+        framingBit = bitstream.readVorbis(1)
 
         if @verbisVer
             @emit 'error', "Vorbis version must be 0, found #{@vorbisVer}."
@@ -130,7 +133,7 @@ class OGGDemuxer extends Demuxer
             if itemValue and itemValue.length
                 metadata[ itemValue[1] ] = itemValue[2]
 
-        unless bitstream.readV(1)
+        unless bitstream.readVorbis(1)
             @emit 'error', 'Framing bit must be non-zero.'
 
         @emit 'metadata', metadata
@@ -140,12 +143,30 @@ class OGGDemuxer extends Demuxer
         bitstream = new Bitstream(stream)
         @checkHeaderSignature stream
 
-        @vorbisCodebookCount  = bitstream.readV(8) + 1
+        # Codebooks
+        @vorbisCodebookCount = bitstream.readVorbis(8) + 1
         @vorbisCodebooks = []
         for i in [0...@vorbisCodebookCount]
             @vorbisCodebooks.push @decodeCodebook( stream, bitstream )
 
-        @vorbisTimeCount = bitstream.readV(6) + 1
+        # Time domain transforms (placeholder)
+        @vorbisTimeCount = bitstream.readVorbis(6) + 1
+        for i in [0...@vorbisTimeCount]
+            if bitstream.readVorbis(16) isnt 0
+                @emit 'error', 'All time domain transforms must be 0'
+
+        # Floors
+        @vorbisFloorTypes  = []
+        @vorbisFloorConfig = []
+        @vorbisFloorCount  = bitstream.readVorbis(6) + 1
+        for i in [0...@vorbisFloorCount]
+            @vorbisFloorTypes[i] = bitstream.readVorbis(16)
+            if @vorbisFloorTypes[i] is 0
+                @decodeFloor0( stream, bitstream )
+            else if @vorbisFloorTypes[i] is 1
+                @decodeFloor1( stream, bitstream )
+            else
+                @emit 'error', "Vorbis floor types must be 0 or 1, found #{@vorbisFloorTypes[i]}"
 
     parseAudioPacket: ->
         stream = new Stream(@buffer)
