@@ -1,5 +1,5 @@
 ###
- ogg.js - Ogg Vorbis decoder in JavaScript
+    ogg.js - Ogg Vorbis decoder in JavaScript
 ###
 class OGGDemuxer extends Demuxer
     Demuxer.register(OGGDemuxer)
@@ -54,10 +54,8 @@ class OGGDemuxer extends Demuxer
 
         # Vorbis Packet
         while @stream.available @segLength[0]
-            bitstream = new Bitstream(@stream)
-
             unless @packetStarted
-                @packetType = @stream.readInt8()
+                @packetType = @stream.readUInt8()
                 @packetStarted = true
                 @buffer = new BufferList()
                 @buffer.push @stream.readSingleBuffer(@segLength[0] - 1)
@@ -81,22 +79,21 @@ class OGGDemuxer extends Demuxer
         bitstream = new Bitstream(stream)
         @checkHeaderSignature stream
 
-        @vorbisVer  = stream.readUInt32()
+        @vorbisVer  = stream.readUInt32(true)
         @channels   = stream.readUInt8()
         @sampleRate = stream.readUInt32(true)
-        @bitRateMax = stream.readInt32(true)
-        @bitRateNom = stream.readInt32(true)
-        @bitRateMin = stream.readInt32(true)
+        @bitRateMax = stream.readUInt32(true)
+        @bitRateNom = stream.readUInt32(true)
+        @bitRateMin = stream.readUInt32(true)
         @bitRate    = if @bitRateMax is @bitRateMin and @bitRateMax then @bitRateMax else @bitRateNom
         @bitDepth   = @bitRate / @sampleRate / @channels
 
-        # blocksize = stream.readUInt8()
         @blocksize0 = 1 << bitstream.readV(4)
         @blocksize1 = 1 << bitstream.readV(4)
         framingBit = bitstream.readV(1)
 
         if @verbisVer
-            @emit 'error', "Vorbis version must be 0, found #{@vorbisV}."
+            @emit 'error', "Vorbis version must be 0, found #{@vorbisVer}."
         if @channels < 1
             @emit 'error', "Channels must be > 0, found #{@channels}."
         if @sampleRate < 1
@@ -119,6 +116,7 @@ class OGGDemuxer extends Demuxer
 
     parseHeaderComments: ->
         stream = new Stream(@buffer)
+        bitstream = new Bitstream(stream)
         @checkHeaderSignature stream
 
         vendorLength = stream.readUInt32(true)
@@ -133,22 +131,22 @@ class OGGDemuxer extends Demuxer
             if itemValue and itemValue.length
                 metadata[ itemValue[1] ] = itemValue[2]
 
-        console.log stream.readUInt8() & 1, 'framing bit'
+        unless bitstream.readV(1)
+            @emit 'error', 'Framing bit must be non-zero.'
 
         @emit 'metadata', metadata
 
-    # TODO
     parseHeaderSetup: ->
         stream = new Stream(@buffer)
+        bitstream = new Bitstream(stream)
         @checkHeaderSignature stream
 
-        @vorbisCodebookCount  = stream.readUInt8() + 1
-        @vorbisCodebookConfig = []
+        @vorbisCodebookCount  = bitstream.readV(8) + 1
+        @vorbisCodebooks = []
         for i in [0...@vorbisCodebookCount]
-            @vorbisCodebookConfig.push @decodeCodebook( stream )
+            @vorbisCodebooks.push @decodeCodebook( stream, bitstream )
 
-        bitstream = new Bitstream(stream)
-        @vorbisTimeCount = bitstream.read(6) + 1
+        @vorbisTimeCount = bitstream.readV(6) + 1
 
     parseAudioPacket: ->
         stream = new Stream(@buffer)
@@ -156,115 +154,7 @@ class OGGDemuxer extends Demuxer
         console.log temp
         @emit 'data', temp
 
-    decodeCodebook: ( stream ) ->
-        codebook = {}
-        bitstream = new Bitstream( stream )
-        if (syncPattern = bitstream.readV(24)) isnt 0x564342
-            @emit 'error', "Invalid codebook sync pattern: #{syncPattern}."
-        console.log(syncPattern)
-        codebook.dimensions  = bitstream.readV(16)
-        codebook.entryLength = bitstream.readV(24)
-        codebook.ordered     = bitstream.readV(1)
-        codebook.entries   = []
-
-        # Codeword length
-        unless codebook.ordered
-            codebook.sparse = bitstream.readV(1)
-            for i in [0...codebook.entryLength]
-                if codebook.sparse
-                    # if flag is set, read stream, otherwise unused
-                    if bitstream.readV(1)
-                        (codebook.entries[i] = {}).length = bitstream.readV(5) + 1
-                    else
-                        (codebook.entries[i] = {}).length = null
-                else
-                    (codebook.entries[i] = {}).length = bitstream.readV(5) + 1
-        else
-            currentEntry = 0
-            while currentEntry < codebook.entryLength
-                currentLength = bitstream.readV(5) + 1
-                number =  bistream.readV(ilog(codebook.entryLength - currentEntry))
-                for i in [currentEntry..currentEntry+number-1]
-                    codebook.entries[i].length = currentLength
-                    currentEntry += number
-                    currentLength++
-                    if currentEntry > codebook.entryLength
-                        @emit 'error', "More codeword lengths (#{currentEntry}) than codebook entries (#{codebook.entryLength})."
-
-        # Skip lookup decoding if type 0
-        if ( codebook.lookupType = bitstream.readV(4) ) 
-            codebook.minValue      = float32Unpack bitstream.readV(32)
-            codebook.deltaValue    = float32Unpack bitstream.readV(32)
-            codebook.valueBits     = bitstream.readV(4) + 1
-            codebook.seq           = bitstream.readV(1)
-            codebook.multiplicands = []
-
-            if codebook.lookupType is 1
-                codebook.lookupValue = lookupValue1 codebook.entryLength, codebook.dimensions
-            else if codebook.lookupType is 2
-                codebook.lookupValue = codebook.entryLength * codebook.dimensions
-            else
-                @emit 'error', "Codebook lookup type #{codebook.lookupType} is reserved and not supported"
-
-            for i in [0...codebook.lookUpValue]
-                codebook.multiplicands.push bitstream.readV(codebook.valueBits)
-
-        # Assigning entries
-        usedCodewords = []
-        for entry in codebook.entries
-            continue if entry.length is null # skip unused entries
-            codeword = entry.length
-            codeword++ while codeword in usedCodewords
-            entry.codeword = codeword
-
-        last = 0
-        indexDivisor = 1
-        @valueVectors = []
-        for i in [0...codebook.dimensions - 1]
-            multOffset = 0
-
-    Bitstream::mask = [
-        0x00000000, 0x00000001, 0x00000003, 0x00000007,
-        0x0000000f, 0x0000001f, 0x0000003f, 0x0000007f,
-        0x000000ff, 0x000001ff, 0x000003ff, 0x000007ff,
-        0x00000fff, 0x00001fff, 0x00003fff, 0x00007fff,
-        0x0000ffff, 0x0001ffff, 0x0003ffff, 0x0007ffff,
-        0x000fffff, 0x001fffff, 0x003fffff, 0x007fffff,
-        0x00ffffff, 0x01ffffff, 0x03ffffff, 0x07ffffff,
-        0x0fffffff, 0x1fffffff, 0x3fffffff, 0x7fffffff,
-        0xffffffff
-    ]
-    Bitstream::readV = ( bits ) ->
-        mask = @mask[bits]
-        aBits = bits + @bitPosition
-        a  = (@stream.peekUInt8()  & 0xFF) >>> @bitPosition
-        a |= (@stream.peekUInt8(1) & 0xFF) << (8 - @bitPosition)  if aBits > 8
-        a |= (@stream.peekUInt8(2) & 0xFF) << (16 - @bitPosition) if aBits > 16
-        a |= (@stream.peekUInt8(3) & 0xFF) << (24 - @bitPosition) if aBits > 24
-        a |= (@stream.peekUInt8(4) & 0xFF) << (32 - @bitPosition) if aBits > 32
-        @advance bits
-        a &= mask
-        return a
-
     checkHeaderSignature: ( stream ) ->
-        @emit 'error', 'Invalid packet header in file.' if stream.readString(6) isnt HEADER_SIG
-
-    ilog = ( x ) ->
-        val = 0
-        while x > 0
-            val++
-            x >>>= 1
-        val
-
-    float32Unpack = ( x ) ->
-        mantissa = x & 0x1fffff
-        sign = x & 0x80000000
-        exp  = ( x & 0x7fe00000 ) >>> 21
-        mantissa *= -1 if x
-        mantissa * (Math.pow 2, exp - 788)
-
-    lookupValue1 = ( entryLength, dimensions ) ->
-        x = 1
-        x++ while Math.pow(x, dimensions) <= entryLength
-        x
+        if stream.readString(6) isnt HEADER_SIG
+            @emit 'error', 'Invalid packet header in file.'
 

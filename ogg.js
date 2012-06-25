@@ -1,3 +1,6 @@
 //import "vendor/aurora.js/src/aurora.coffee"
 //import "src/demuxer.coffee"
-//import "src/decoder.coffee"
+//import "src/util.coffee"
+//import "src/codebook.coffee"
+//import "src/bitstreamVorbis.coffee"
+//import "src/decoder.js"
