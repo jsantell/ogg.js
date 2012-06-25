@@ -29,13 +29,13 @@ OGGDemuxer::decodeCodebook = ( stream, bitstream ) ->
         currentLength = bitstream.readV(5) + 1
         i = 0
         while i < codebook.entryCount
-            number =  bistream.readV(OGGDemuxer.ilog(codebook.entryCount - i))
-            for j in [currentEntry..currentEntry+number-1]
-                codebook.entries[j].length = currentLength
+            number =  bitstream.readV(OGGDemuxer.ilog(codebook.entryCount - i))
+            for j in [i..i+number-1]
+                (codebook.entries[j] = {}).length = currentLength
                 i++
                 currentLength++
                 if i > codebook.entryCount
-                    @emit 'error', "More codeword lengths (#{currentEntry}) than codebook entries (#{codebook.entryCount})."
+                    @emit 'error', "More codeword lengths (#{i}) than codebook entries (#{codebook.entryCount})."
 
 
     # Skip lookup decoding if type 0
@@ -54,7 +54,7 @@ OGGDemuxer::decodeCodebook = ( stream, bitstream ) ->
         else
             @emit 'error', "Codebook lookup type #{codebook.lookupType} is reserved and not supported"
 
-        for i in [0...codebook.lookUpValue]
+        for i in [0...codebook.quantValue]
             codebook.multiplicands.push bitstream.readV(codebook.valueBits)
 
 ###
