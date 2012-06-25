@@ -14,4 +14,4 @@ OGGDemuxer.float32Unpack = ( x ) ->
 OGGDemuxer.lookupValue1 = ( entryLength, dimensions ) ->
     x = 1
     x++ while Math.pow(x, dimensions) <= entryLength
-    return x
+    return x-1
