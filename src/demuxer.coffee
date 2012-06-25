@@ -53,7 +53,7 @@ class OGGDemuxer extends Demuxer
             @pageStarted = true
 
         # Vorbis Packet
-        while @stream.available @segLength[0]
+        while @segLength.length and @stream.available(@segLength[0])
             unless @packetStarted
                 @packetType = @stream.readUInt8()
                 @packetStarted = true
@@ -110,7 +110,6 @@ class OGGDemuxer extends Demuxer
             channels   : @channels
             sampleRate : @sampleRate
             bitDepth   : @bitDepth
-        console.log @format
 
         @emit 'format', @format
 
