@@ -16,4 +16,4 @@ You can also build a static version like this:
 
     import ogg.js build.js
 
-Once it is running on port 3030, you can open test.html and select a flac file from your system to play back.
+Once it is running on port 3030, you can open test.html and select an ogg file from your system to play back.
