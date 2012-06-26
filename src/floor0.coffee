@@ -15,11 +15,16 @@ OGGDemuxer::decodeFloor0 = ( stream, bitstream ) ->
     bookCount = bitstream.readVorbis(4) + 1
     bookList = []
 
+    if ampBits is 0
+        @emit 'error', "Amplitude bits cannot be 0, found #{ampBits}"
+
     for i in [0...bookCount]
         bookList.push bitstream.readVorbis(8)
-        if booklist[i] >= @vorbisCodebookCount
+        if bookList[i] >= @vorbisCodebookCount
             @emit 'error', "Floor0 book cannot be greater than codebook count"
 
+# VQ vectors of books, used later
+### 
     amplitude = bitstream.readVorbis(ampBits)
     if amplitude > 0
         coefficients = []
@@ -28,4 +33,5 @@ OGGDemuxer::decodeFloor0 = ( stream, bitstream ) ->
             @emit 'error', "Book number #{bookNumber} cannot be greater than codebook count"
         
         last = 0
-    # TODO
+        tempVector = []
+###

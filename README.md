@@ -1,7 +1,7 @@
 ogg.js: An Ogg Vorbis decoder in JavaScript
 =====================================
 
-## still in heavy development!
+## still in heavy development! not yet working!
 
 ogg.js uses the [Aurora](https://github.com/ofmlabs/aurora.js) audio framework by ofmlabs to facilitate decoding and playback.
 
@@ -17,3 +17,14 @@ You can also build a static version like this:
     import ogg.js build.js
 
 Once it is running on port 3030, you can open test.html and select an ogg file from your system to play back.
+
+## Todo
+The remaining items still need to be developed
+* Header Floors Decoding
+* Header Residue Decoding
+* Header Mapping Decoding
+* Header Modes Decoding
+* Audio Packet Window Decoding
+* Audio Packet Floor Curve Decoding
+* Audio Packet Residue Decoding
+* Audio Packet Output

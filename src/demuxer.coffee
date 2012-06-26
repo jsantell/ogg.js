@@ -162,9 +162,9 @@ class OGGDemuxer extends Demuxer
         for i in [0...@vorbisFloorCount]
             @vorbisFloorTypes[i] = bitstream.readVorbis(16)
             if @vorbisFloorTypes[i] is 0
-                @decodeFloor0( stream, bitstream )
+                @vorbisFloorConfig.push @decodeFloor0( stream, bitstream )
             else if @vorbisFloorTypes[i] is 1
-                @decodeFloor1( stream, bitstream )
+                @vorbisFloorConfig.push @decodeFloor1( stream, bitstream )
             else
                 @emit 'error', "Vorbis floor types must be 0 or 1, found #{@vorbisFloorTypes[i]}"
 
