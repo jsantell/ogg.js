@@ -91,9 +91,9 @@ class OGGDemuxer extends Demuxer
         @bitRate    = if @bitRateMax is @bitRateMin and @bitRateMax then @bitRateMax else @bitRateNom
         @bitDepth   = @bitRate / @sampleRate / @channels
 
-        @blocksize0 = 1 << bitstream.readVorbis(4)
-        @blocksize1 = 1 << bitstream.readVorbis(4)
-        framingBit = bitstream.readVorbis(1)
+        @blocksize0 = 1 << bitstream.readLSB(4)
+        @blocksize1 = 1 << bitstream.readLSB(4)
+        framingBit = bitstream.readLSB(1)
 
         if @verbisVer
             @emit 'error', "Vorbis version must be 0, found #{@vorbisVer}."
@@ -133,7 +133,7 @@ class OGGDemuxer extends Demuxer
             if itemValue and itemValue.length
                 metadata[ itemValue[1] ] = itemValue[2]
 
-        unless bitstream.readVorbis(1)
+        unless bitstream.readLSB(1)
             @emit 'error', 'Framing bit must be non-zero.'
 
         @emit 'metadata', metadata
@@ -144,23 +144,23 @@ class OGGDemuxer extends Demuxer
         @checkHeaderSignature stream
 
         # Codebooks
-        @vorbisCodebookCount = bitstream.readVorbis(8) + 1
+        @vorbisCodebookCount = bitstream.readLSB(8) + 1
         @vorbisCodebooks = []
         for i in [0...@vorbisCodebookCount]
             @vorbisCodebooks.push @decodeCodebook( stream, bitstream )
 
         # Time domain transforms (placeholder)
-        @vorbisTimeCount = bitstream.readVorbis(6) + 1
+        @vorbisTimeCount = bitstream.readLSB(6) + 1
         for i in [0...@vorbisTimeCount]
-            if bitstream.readVorbis(16) isnt 0
+            if bitstream.readLSB(16) isnt 0
                 @emit 'error', 'All time domain transforms must be 0'
 
         # Floors
         @vorbisFloorTypes  = []
         @vorbisFloorConfig = []
-        @vorbisFloorCount  = bitstream.readVorbis(6) + 1
+        @vorbisFloorCount  = bitstream.readLSB(6) + 1
         for i in [0...@vorbisFloorCount]
-            @vorbisFloorTypes[i] = bitstream.readVorbis(16)
+            @vorbisFloorTypes[i] = bitstream.readLSB(16)
             if @vorbisFloorTypes[i] is 0
                 @vorbisFloorConfig.push @decodeFloor0( stream, bitstream )
             else if @vorbisFloorTypes[i] is 1

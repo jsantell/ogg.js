@@ -8,36 +8,36 @@
 
 OGGDemuxer::decodeCodebook = ( stream, bitstream ) ->
     codebook = {}
-    if (syncPattern = bitstream.readVorbis(24)) isnt 0x564342
+    if (syncPattern = bitstream.readLSB(24)) isnt 0x564342
         @emit 'error', "Invalid codebook sync pattern: #{syncPattern}."
     console.log(syncPattern)
 
-    codebook.dimensions  = bitstream.readVorbis(16)
-    codebook.entryCount  = bitstream.readVorbis(24)
+    codebook.dimensions  = bitstream.readLSB(16)
+    codebook.entryCount  = bitstream.readLSB(24)
     codebook.entries     = []
 
 
     # Whether codewords are ordered or unordered
     # Unordered way more common
-    unless bitstream.readVorbis(1)
+    unless bitstream.readLSB(1)
         # Can there be unused entries?
-        codebook.sparse = bitstream.readVorbis(1)
+        codebook.sparse = bitstream.readLSB(1)
         for i in [0...codebook.entryCount]
             if codebook.sparse
                 # if flag is set, read stream, otherwise unused
-                if bitstream.readVorbis(1)
-                    (codebook.entries[i] = {}).length = bitstream.readVorbis(5) + 1
+                if bitstream.readLSB(1)
+                    (codebook.entries[i] = {}).length = bitstream.readLSB(5) + 1
                 else
                     (codebook.entries[i] = {}).length = null
             else
-                (codebook.entries[i] = {}).length = bitstream.readVorbis(5) + 1
+                (codebook.entries[i] = {}).length = bitstream.readLSB(5) + 1
     # Ordered codewords
     # Uncommon/unused?
     else
-        currentLength = bitstream.readVorbis(5) + 1
+        currentLength = bitstream.readLSB(5) + 1
         i = 0
         while i < codebook.entryCount
-            number =  bitstream.readVorbis(OGGDemuxer.ilog(codebook.entryCount - i))
+            number =  bitstream.readLSB(OGGDemuxer.ilog(codebook.entryCount - i))
             for j in [i..i+number-1]
                 (codebook.entries[j] = {}).length = currentLength
             i += number
@@ -47,11 +47,11 @@ OGGDemuxer::decodeCodebook = ( stream, bitstream ) ->
 
 
     # Skip lookup decoding if type 0
-    if ( codebook.lookupType = bitstream.readVorbis(4) )
-        codebook.minValue      = OGGDemuxer.float32Unpack bitstream.readVorbis(32)
-        codebook.deltaValue    = OGGDemuxer.float32Unpack bitstream.readVorbis(32)
-        codebook.valueBits     = bitstream.readVorbis(4) + 1
-        codebook.seq           = bitstream.readVorbis(1)
+    if ( codebook.lookupType = bitstream.readLSB(4) )
+        codebook.minValue      = OGGDemuxer.float32Unpack bitstream.readLSB(32)
+        codebook.deltaValue    = OGGDemuxer.float32Unpack bitstream.readLSB(32)
+        codebook.valueBits     = bitstream.readLSB(4) + 1
+        codebook.seq           = bitstream.readLSB(1)
         codebook.multiplicands = []
 
         if codebook.lookupType is 1
@@ -63,7 +63,7 @@ OGGDemuxer::decodeCodebook = ( stream, bitstream ) ->
             @emit 'error', "Codebook lookup type #{codebook.lookupType} is reserved and not supported"
 
         for i in [0...codebook.quantValue]
-            codebook.multiplicands.push bitstream.readVorbis(codebook.valueBits)
+            codebook.multiplicands.push bitstream.readLSB(codebook.valueBits)
 
 ###
     usedCodewords = []
